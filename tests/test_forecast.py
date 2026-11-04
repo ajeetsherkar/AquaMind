@@ -82,3 +82,67 @@ def test_forecast_requires_timestamp_and_health_index():
 
     with pytest.raises(ValueError):
         forecast_health_threshold(dataframe)
+
+
+def test_forecast_ignores_invalid_health_values():
+    dataframe = make_health_data([100, 95, float("nan"), 85, 80, 75])
+
+    result = forecast_health_threshold(
+        dataframe,
+        ForecastConfig(health_threshold=70, min_samples=5),
+    )
+
+    assert result["forecast_valid"] is True
+    assert result["samples_used"] == 5
+
+
+def test_forecast_rejects_health_values_outside_valid_range():
+    dataframe = make_health_data([110, 100, 95, 90, 85, 80, 75])
+
+    result = forecast_health_threshold(
+        dataframe,
+        ForecastConfig(health_threshold=70, min_samples=5),
+    )
+
+    assert result["forecast_valid"] is True
+    assert result["samples_used"] == 6
+
+
+def test_forecast_rejects_duplicate_timestamps():
+    dataframe = make_health_data([100, 95, 90, 85, 80])
+    dataframe["timestamp"] = pd.Timestamp("2026-01-01 00:00:00")
+
+    result = forecast_health_threshold(
+        dataframe,
+        ForecastConfig(min_samples=5),
+    )
+
+    assert result["forecast_valid"] is False
+    assert result["reason"] == "Timestamps must span at least two distinct times."
+
+
+def test_forecast_handles_missing_health_index_values():
+    dataframe = make_health_data([100, 95, 90, 85, 80])
+    dataframe.loc[2, "health_index"] = float("nan")
+
+    result = forecast_health_threshold(
+        dataframe,
+        ForecastConfig(min_samples=5),
+    )
+
+    assert result["forecast_valid"] is False
+    assert result["samples_used"] == 4
+
+
+def test_forecast_handles_invalid_timestamps():
+    dataframe = make_health_data([100, 95, 90, 85, 80])
+    dataframe["timestamp"] = dataframe["timestamp"].astype(object)
+    dataframe.loc[2, "timestamp"] = "invalid"
+
+    result = forecast_health_threshold(
+        dataframe,
+        ForecastConfig(min_samples=5),
+    )
+
+    assert result["forecast_valid"] is False
+    assert result["samples_used"] == 4

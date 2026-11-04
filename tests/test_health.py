@@ -32,7 +32,7 @@ def test_prefilter_threshold_reached_produces_health_zero():
     result = calculate_health_index(row, BASELINE)
 
     assert result["prefilter_pressure_drop_degradation"] == pytest.approx(1.0)
-    assert result["health_index"] == pytest.approx(80.0)
+    assert result["health_index"] == pytest.approx(0.0)
 
 
 def test_salt_rejection_threshold_reached():
@@ -42,7 +42,7 @@ def test_salt_rejection_threshold_reached():
     result = calculate_health_index(row, BASELINE)
 
     assert result["salt_rejection_percent_degradation"] == pytest.approx(1.0)
-    assert result["health_index"] == pytest.approx(80.0)
+    assert result["health_index"] == pytest.approx(0.0)
 
 
 def test_flow_degradation_is_baseline_relative():
@@ -52,7 +52,7 @@ def test_flow_degradation_is_baseline_relative():
     result = calculate_health_index(row, BASELINE)
 
     assert result["normalized_permeate_flow_degradation"] == pytest.approx(0.5)
-    assert result["health_index"] == pytest.approx(90.0)
+    assert result["health_index"] == pytest.approx(50.0)
 
 
 def test_degradation_is_clipped_at_threshold():
@@ -99,3 +99,30 @@ def test_non_finite_indicator_is_ignored_in_weighted_score():
 
     assert np.isfinite(result["health_index"])
     assert result["health_index"] == pytest.approx(100.0)
+
+
+def test_system_pressure_above_configured_range_produces_progressive_degradation():
+    row = healthy_row()
+    row["system_pressure"] = 11.0
+
+    result = calculate_health_index(row, BASELINE)
+
+    assert result["system_pressure_degradation"] == pytest.approx(0.2)
+    assert result["health_index"] == pytest.approx(80.0)
+def test_recovery_above_configured_range_produces_progressive_degradation():
+    row = healthy_row()
+    row["recovery_percent"] = 60.0
+
+    result = calculate_health_index(row, BASELINE)
+
+    assert result["recovery_percent_degradation"] == pytest.approx(1 / 3)
+    assert result["health_index"] == pytest.approx(100 * (1 - 1 / 3))
+def test_health_index_stays_between_zero_and_100():
+    row = healthy_row()
+    row["prefilter_pressure_drop"] = 100.0
+    row["salt_rejection_percent"] = -100.0
+    row["normalized_permeate_flow"] = 0.0
+
+    result = calculate_health_index(row, BASELINE)
+
+    assert 0.0 <= result["health_index"] <= 100.0

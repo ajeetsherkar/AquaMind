@@ -93,7 +93,8 @@ def calculate_health_index(
     A score of 0 indicates at least one configured threshold is reached.
     """
 
-    missing_row = sorted(set(INDICATOR_COLUMNS) - set(row))
+    row_keys = set(row.index) if hasattr(row, "index") else set(row.keys())
+    missing_row = sorted(set(INDICATOR_COLUMNS) - row_keys)
     missing_baseline = sorted(set(INDICATOR_COLUMNS) - set(baseline))
 
     if missing_row:
@@ -203,24 +204,23 @@ def calculate_health_index(
     if total_weight <= 0:
         raise ValueError("At least one health weight must be positive.")
 
-    valid_degradations = {
-        name: value
-        for name, value in degradations.items()
+    valid_degradations = [
+        value
+        for value in degradations.values()
         if np.isfinite(value)
-    }
+    ]
 
-    valid_weight = sum(weights[name] for name in valid_degradations)
-
-    if valid_weight <= 0:
+    if not valid_degradations:
         health_index = float("nan")
     else:
-        overall_degradation = sum(
-            degradations[name] * weights[name]
-            for name in valid_degradations
-        ) / valid_weight
+        maximum_degradation = max(valid_degradations)
 
         health_index = float(
-            np.clip(100.0 * (1.0 - overall_degradation), 0.0, 100.0)
+            np.clip(
+                100.0 * (1.0 - maximum_degradation),
+                0.0,
+                100.0,
+            )
         )
 
     result = {
